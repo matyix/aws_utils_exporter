@@ -69,3 +69,13 @@ var SpotInstanceBlockHourlyPrice *prometheus.GaugeVec
 var InstanceLabelsCacheMutex = sync.RWMutex{}
 var InstanceLabelsCache = map[string]prometheus.Labels{}
 var InstanceLabelsCacheIsVPC = map[string]bool{}
+
+const (
+	TimeFormat = "2006-01-02T15:04:05Z"
+)
+
+type TerminationCollector struct {
+	scrapeSuccessful     *prometheus.Desc
+	terminationIndicator *prometheus.Desc
+	terminationTime      *prometheus.Desc
+}
