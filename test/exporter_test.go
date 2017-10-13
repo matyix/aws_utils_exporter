@@ -23,7 +23,32 @@ const (
 
 
 func TestHandlingOfDuplicatedMetrics(t *testing.T) {
-	return nil
+	if _, err := os.Stat(binary); err != nil {
+		t.Skipf("node_exporter binary not available, try to run `make build` first: %s", err)
+	}
+
+	dir, err := ioutil.TempDir("", "node-exporter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	content := []byte("dummy_metric 1\n")
+	if err := ioutil.WriteFile(filepath.Join(dir, "a.prom"), content, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := ioutil.WriteFile(filepath.Join(dir, "b.prom"), content, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	exporter := exec.Command(binary, "--web.listen-address", address, "--collector.textfile.directory", dir)
+	test := func(_ int) error {
+		return queryExporter(address)
+	}
+
+	if err := runCommandAndTests(exporter, address, test); err != nil {
+		t.Error(err)
+	}
 }
 
 func queryExporter(address string) error {
