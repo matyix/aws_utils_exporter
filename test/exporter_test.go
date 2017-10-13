@@ -1,0 +1,77 @@
+package main
+
+import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/prometheus/procfs"
+)
+
+var (
+	binary = filepath.Join(os.Getenv("GOPATH"), "bin/node_exporter")
+)
+
+const (
+	address = "localhost:19100"
+)
+
+
+func TestHandlingOfDuplicatedMetrics(t *testing.T) {
+	return nil
+}
+
+func queryExporter(address string) error {
+	resp, err := http.Get(fmt.Sprintf("http://%s/metrics", address))
+	if err != nil {
+		return err
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if err := resp.Body.Close(); err != nil {
+		return err
+	}
+	if want, have := http.StatusOK, resp.StatusCode; want != have {
+		return fmt.Errorf("want /metrics status code %d, have %d. Body:\n%s", want, have, b)
+	}
+	return nil
+}
+
+func runCommandAndTests(cmd *exec.Cmd, address string, fn func(pid int) error) error {
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start command: %s", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	for i := 0; i < 10; i++ {
+		if err := queryExporter(address); err == nil {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+		if cmd.Process == nil || i == 9 {
+			return fmt.Errorf("can't start command")
+		}
+	}
+
+	errc := make(chan error)
+	go func(pid int) {
+		errc <- fn(pid)
+	}(cmd.Process.Pid)
+
+	select {
+	case err := <-errc:
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
